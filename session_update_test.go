@@ -462,30 +462,18 @@ func TestUpdate1(t *testing.T) {
 
 	col1 := &UpdateAllCols{Ptr: &s}
 	err = testEngine.Sync(col1)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	_, err = testEngine.Insert(col1)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	col2 := &UpdateAllCols{col1.Id, true, "", nil}
 	_, err = testEngine.ID(col2.Id).AllCols().Update(col2)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	col3 := &UpdateAllCols{}
 	has, err = testEngine.ID(col2.Id).Get(col3)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	if !has {
 		err = errors.New(fmt.Sprintf("cannot get id %d", col2.Id))
@@ -759,7 +747,7 @@ func TestUpdateUpdated(t *testing.T) {
 func TestUpdateSameMapper(t *testing.T) {
 	assert.NoError(t, prepareEngine())
 
-	oldMapper := testEngine.GetColumnMapper()
+	oldMapper := testEngine.GetTableMapper()
 	testEngine.UnMapType(rValue(new(Userinfo)).Type())
 	testEngine.UnMapType(rValue(new(Condi)).Type())
 	testEngine.UnMapType(rValue(new(Article)).Type())
@@ -786,81 +774,38 @@ func TestUpdateSameMapper(t *testing.T) {
 
 	var ori Userinfo
 	has, err := testEngine.Get(&ori)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
-	if !has {
-		t.Error(errors.New("not exist"))
-		panic(errors.New("not exist"))
-	}
+	assert.NoError(t, err)
+	assert.True(t, has)
+
 	// update by id
 	user := Userinfo{Username: "xxx", Height: 1.2}
 	cnt, err := testEngine.ID(ori.Uid).Update(&user)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
-	if cnt != 1 {
-		err = errors.New("update not returned 1")
-		t.Error(err)
-		panic(err)
-		return
-	}
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
 
 	condi := Condi{"Username": "zzz", "Departname": ""}
 	cnt, err = testEngine.Table(&user).ID(ori.Uid).Update(&condi)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
-
-	if cnt != 1 {
-		err = errors.New("update not returned 1")
-		t.Error(err)
-		panic(err)
-		return
-	}
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
 
 	cnt, err = testEngine.Update(&Userinfo{Username: "yyy"}, &user)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	total, err := testEngine.Count(&user)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
-
-	if cnt != total {
-		err = errors.New("insert not returned 1")
-		t.Error(err)
-		panic(err)
-		return
-	}
+	assert.NoError(t, err)
+	assert.EqualValues(t, cnt, total)
 
 	err = testEngine.Sync(&Article{})
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	defer func() {
 		err = testEngine.DropTables(&Article{})
-		if err != nil {
-			t.Error(err)
-			panic(err)
-		}
+		assert.NoError(t, err)
 	}()
 
 	a := &Article{0, "1", "2", "3", "4", "5", 2}
 	cnt, err = testEngine.Insert(a)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	if cnt != 1 {
 		err = errors.New(fmt.Sprintf("insert not returned 1 but %d", cnt))
@@ -875,10 +820,7 @@ func TestUpdateSameMapper(t *testing.T) {
 	}
 
 	cnt, err = testEngine.ID(a.Id).Update(&Article{Name: "6"})
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	if cnt != 1 {
 		err = errors.New(fmt.Sprintf("insert not returned 1 but %d", cnt))
@@ -889,30 +831,18 @@ func TestUpdateSameMapper(t *testing.T) {
 
 	col1 := &UpdateAllCols{}
 	err = testEngine.Sync(col1)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	_, err = testEngine.Insert(col1)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	col2 := &UpdateAllCols{col1.Id, true, "", nil}
 	_, err = testEngine.ID(col2.Id).AllCols().Update(col2)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	col3 := &UpdateAllCols{}
 	has, err = testEngine.ID(col2.Id).Get(col3)
-	if err != nil {
-		t.Error(err)
-		panic(err)
-	}
+	assert.NoError(t, err)
 
 	if !has {
 		err = errors.New(fmt.Sprintf("cannot get id %d", col2.Id))
@@ -931,32 +861,20 @@ func TestUpdateSameMapper(t *testing.T) {
 	{
 		col1 := &UpdateMustCols{}
 		err = testEngine.Sync(col1)
-		if err != nil {
-			t.Error(err)
-			panic(err)
-		}
+		assert.NoError(t, err)
 
 		_, err = testEngine.Insert(col1)
-		if err != nil {
-			t.Error(err)
-			panic(err)
-		}
+		assert.NoError(t, err)
 
 		col2 := &UpdateMustCols{col1.Id, true, ""}
 		boolStr := testEngine.GetColumnMapper().Obj2Table("Bool")
 		stringStr := testEngine.GetColumnMapper().Obj2Table("String")
 		_, err = testEngine.ID(col2.Id).MustCols(boolStr, stringStr).Update(col2)
-		if err != nil {
-			t.Error(err)
-			panic(err)
-		}
+		assert.NoError(t, err)
 
 		col3 := &UpdateMustCols{}
 		has, err := testEngine.ID(col2.Id).Get(col3)
-		if err != nil {
-			t.Error(err)
-			panic(err)
-		}
+		assert.NoError(t, err)
 
 		if !has {
 			err = errors.New(fmt.Sprintf("cannot get id %d", col2.Id))
@@ -974,7 +892,6 @@ func TestUpdateSameMapper(t *testing.T) {
 	}
 
 	{
-
 		col1 := &UpdateIncr{}
 		err = testEngine.Sync(col1)
 		if err != nil {
@@ -1245,4 +1162,124 @@ func TestUpdateMapCondition(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, has)
 	assert.EqualValues(t, "string1", c2.String)
+}
+
+func TestUpdateMapContent(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	type UpdateMapContent struct {
+		Id     int64
+		Name   string
+		IsMan  bool
+		Age    int
+		Gender int // 1 is man, 2 is woman
+	}
+
+	assertSync(t, new(UpdateMapContent))
+
+	var c = UpdateMapContent{
+		Name:   "lunny",
+		IsMan:  true,
+		Gender: 1,
+		Age:    18,
+	}
+	_, err := testEngine.Insert(&c)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 18, c.Age)
+
+	cnt, err := testEngine.Table(new(UpdateMapContent)).ID(c.Id).Update(map[string]interface{}{"age": 0})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	var c1 UpdateMapContent
+	has, err := testEngine.ID(c.Id).Get(&c1)
+	assert.NoError(t, err)
+	assert.True(t, has)
+	assert.EqualValues(t, 0, c1.Age)
+
+	cnt, err = testEngine.Table(new(UpdateMapContent)).ID(c.Id).Update(map[string]interface{}{
+		"age":    16,
+		"is_man": false,
+		"gender": 2,
+	})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	var c2 UpdateMapContent
+	has, err = testEngine.ID(c.Id).Get(&c2)
+	assert.NoError(t, err)
+	assert.True(t, has)
+	assert.EqualValues(t, 16, c2.Age)
+	assert.EqualValues(t, false, c2.IsMan)
+	assert.EqualValues(t, 2, c2.Gender)
+
+	cnt, err = testEngine.Table(testEngine.TableName(new(UpdateMapContent))).ID(c.Id).Update(map[string]interface{}{
+		"age":    15,
+		"is_man": true,
+		"gender": 1,
+	})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	var c3 UpdateMapContent
+	has, err = testEngine.ID(c.Id).Get(&c3)
+	assert.NoError(t, err)
+	assert.True(t, has)
+	assert.EqualValues(t, 15, c3.Age)
+	assert.EqualValues(t, true, c3.IsMan)
+	assert.EqualValues(t, 1, c3.Gender)
+}
+
+func TestUpdateCondiBean(t *testing.T) {
+	type NeedUpdateBean struct {
+		Id   int64
+		Name string
+	}
+
+	type NeedUpdateCondiBean struct {
+		Name string
+	}
+
+	assert.NoError(t, prepareEngine())
+	assertSync(t, new(NeedUpdateBean))
+
+	cnt, err := testEngine.Insert(&NeedUpdateBean{
+		Name: "name1",
+	})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	has, err := testEngine.Exist(&NeedUpdateBean{
+		Name: "name1",
+	})
+	assert.NoError(t, err)
+	assert.True(t, has)
+
+	cnt, err = testEngine.Update(&NeedUpdateBean{
+		Name: "name2",
+	}, &NeedUpdateCondiBean{
+		Name: "name1",
+	})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	has, err = testEngine.Exist(&NeedUpdateBean{
+		Name: "name2",
+	})
+	assert.NoError(t, err)
+	assert.True(t, has)
+
+	cnt, err = testEngine.Update(&NeedUpdateBean{
+		Name: "name1",
+	}, NeedUpdateCondiBean{
+		Name: "name2",
+	})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	has, err = testEngine.Exist(&NeedUpdateBean{
+		Name: "name1",
+	})
+	assert.NoError(t, err)
+	assert.True(t, has)
 }

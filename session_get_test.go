@@ -5,6 +5,7 @@
 package xorm
 
 import (
+	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ func TestGetVar(t *testing.T) {
 		Age:   28,
 		Money: 1.5,
 	}
-	_, err := testEngine.InsertOne(data)
+	_, err := testEngine.InsertOne(&data)
 	assert.NoError(t, err)
 
 	var msg string
@@ -55,11 +56,43 @@ func TestGetVar(t *testing.T) {
 	assert.Equal(t, true, has)
 	assert.EqualValues(t, 28, age2)
 
+	var id sql.NullInt64
+	has, err = testEngine.Table("get_var").Cols("id").Get(&id)
+	assert.NoError(t, err)
+	assert.Equal(t, true, has)
+	assert.Equal(t, true, id.Valid)
+	assert.EqualValues(t, data.Id, id.Int64)
+
+	var msgNull sql.NullString
+	has, err = testEngine.Table("get_var").Cols("msg").Get(&msgNull)
+	assert.NoError(t, err)
+	assert.Equal(t, true, has)
+	assert.Equal(t, true, msgNull.Valid)
+	assert.EqualValues(t, data.Msg, msgNull.String)
+
+	var nullMoney sql.NullFloat64
+	has, err = testEngine.Table("get_var").Cols("money").Get(&nullMoney)
+	assert.NoError(t, err)
+	assert.Equal(t, true, has)
+	assert.Equal(t, true, nullMoney.Valid)
+	assert.EqualValues(t, data.Money, nullMoney.Float64)
+
 	var money float64
 	has, err = testEngine.Table("get_var").Cols("money").Get(&money)
 	assert.NoError(t, err)
 	assert.Equal(t, true, has)
 	assert.Equal(t, "1.5", fmt.Sprintf("%.1f", money))
+
+	var money2 float64
+	has, err = testEngine.SQL("SELECT money FROM " + testEngine.TableName("get_var", true) + " LIMIT 1").Get(&money2)
+	assert.NoError(t, err)
+	assert.Equal(t, true, has)
+	assert.Equal(t, "1.5", fmt.Sprintf("%.1f", money2))
+
+	var money3 float64
+	has, err = testEngine.SQL("SELECT money FROM " + testEngine.TableName("get_var", true) + " WHERE money > 20").Get(&money3)
+	assert.NoError(t, err)
+	assert.Equal(t, false, has)
 
 	var valuesString = make(map[string]string)
 	has, err = testEngine.Table("get_var").Get(&valuesString)
@@ -226,4 +259,63 @@ func TestJSONString(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, len(jss))
 	assert.EqualValues(t, `["1","2"]`, jss[0].Content)
+}
+
+func TestGetActionMapping(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	type ActionMapping struct {
+		ActionId    string `xorm:"pk"`
+		ActionName  string `xorm:"index"`
+		ScriptId    string `xorm:"unique"`
+		RollbackId  string `xorm:"unique"`
+		Env         string
+		Tags        string
+		Description string
+		UpdateTime  time.Time `xorm:"updated"`
+		DeleteTime  time.Time `xorm:"deleted"`
+	}
+
+	assertSync(t, new(ActionMapping))
+
+	_, err := testEngine.Insert(&ActionMapping{
+		ActionId: "1",
+		ScriptId: "2",
+	})
+	assert.NoError(t, err)
+
+	var valuesSlice = make([]string, 2)
+	has, err := testEngine.Table(new(ActionMapping)).
+		Cols("script_id", "rollback_id").
+		ID("1").Get(&valuesSlice)
+	assert.NoError(t, err)
+	assert.True(t, has)
+	assert.EqualValues(t, "2", valuesSlice[0])
+	assert.EqualValues(t, "", valuesSlice[1])
+}
+
+func TestGetStructId(t *testing.T) {
+	type TestGetStruct struct {
+		Id int64
+	}
+
+	assert.NoError(t, prepareEngine())
+	assertSync(t, new(TestGetStruct))
+
+	_, err := testEngine.Insert(&TestGetStruct{})
+	assert.NoError(t, err)
+	_, err = testEngine.Insert(&TestGetStruct{})
+	assert.NoError(t, err)
+
+	type maxidst struct {
+		Id int64
+	}
+
+	//var id int64
+	var maxid maxidst
+	sql := "select max(id) as id from " + testEngine.TableName(&TestGetStruct{}, true)
+	has, err := testEngine.SQL(sql).Get(&maxid)
+	assert.NoError(t, err)
+	assert.True(t, has)
+	assert.EqualValues(t, 2, maxid.Id)
 }

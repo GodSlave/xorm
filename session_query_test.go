@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-xorm/builder"
+	"github.com/go-xorm/core"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +37,7 @@ func TestQueryString(t *testing.T) {
 	_, err := testEngine.InsertOne(data)
 	assert.NoError(t, err)
 
-	records, err := testEngine.QueryString("select * from get_var2")
+	records, err := testEngine.QueryString("select * from " + testEngine.TableName("get_var2", true))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(records))
 	assert.Equal(t, 5, len(records[0]))
@@ -60,7 +63,7 @@ func TestQueryString2(t *testing.T) {
 	_, err := testEngine.Insert(data)
 	assert.NoError(t, err)
 
-	records, err := testEngine.QueryString("select * from get_var3")
+	records, err := testEngine.QueryString("select * from " + testEngine.TableName("get_var3", true))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(records))
 	assert.Equal(t, 2, len(records[0]))
@@ -125,7 +128,7 @@ func TestQueryInterface(t *testing.T) {
 	_, err := testEngine.InsertOne(data)
 	assert.NoError(t, err)
 
-	records, err := testEngine.QueryInterface("select * from get_var_interface")
+	records, err := testEngine.QueryInterface("select * from " + testEngine.TableName("get_var_interface", true))
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(records))
 	assert.Equal(t, 5, len(records[0]))
@@ -179,7 +182,118 @@ func TestQueryNoParams(t *testing.T) {
 	assert.NoError(t, err)
 	assertResult(t, results)
 
-	results, err = testEngine.SQL("select * from query_no_params").Query()
+	results, err = testEngine.SQL("select * from " + testEngine.TableName("query_no_params", true)).Query()
+	assert.NoError(t, err)
+	assertResult(t, results)
+}
+
+func TestQueryStringNoParam(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	type GetVar4 struct {
+		Id  int64 `xorm:"autoincr pk"`
+		Msg bool  `xorm:"bit"`
+	}
+
+	assert.NoError(t, testEngine.Sync2(new(GetVar4)))
+
+	var data = GetVar4{
+		Msg: false,
+	}
+	_, err := testEngine.Insert(data)
+	assert.NoError(t, err)
+
+	records, err := testEngine.Table("get_var4").Limit(1).QueryString()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(records))
+	assert.EqualValues(t, "1", records[0]["id"])
+	if testEngine.Dialect().URI().DbType == core.POSTGRES {
+		assert.EqualValues(t, "false", records[0]["msg"])
+	} else {
+		assert.EqualValues(t, "0", records[0]["msg"])
+	}
+
+	records, err = testEngine.Table("get_var4").Where(builder.Eq{"id": 1}).QueryString()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(records))
+	assert.EqualValues(t, "1", records[0]["id"])
+	if testEngine.Dialect().URI().DbType == core.POSTGRES {
+		assert.EqualValues(t, "false", records[0]["msg"])
+	} else {
+		assert.EqualValues(t, "0", records[0]["msg"])
+	}
+}
+
+func TestQueryInterfaceNoParam(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	type GetVar5 struct {
+		Id  int64 `xorm:"autoincr pk"`
+		Msg bool  `xorm:"bit"`
+	}
+
+	assert.NoError(t, testEngine.Sync2(new(GetVar5)))
+
+	var data = GetVar5{
+		Msg: false,
+	}
+	_, err := testEngine.Insert(data)
+	assert.NoError(t, err)
+
+	records, err := testEngine.Table("get_var5").Limit(1).QueryInterface()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(records))
+	assert.EqualValues(t, 1, toInt64(records[0]["id"]))
+	assert.EqualValues(t, 0, toInt64(records[0]["msg"]))
+
+	records, err = testEngine.Table("get_var5").Where(builder.Eq{"id": 1}).QueryInterface()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(records))
+	assert.EqualValues(t, 1, toInt64(records[0]["id"]))
+	assert.EqualValues(t, 0, toInt64(records[0]["msg"]))
+}
+
+func TestQueryWithBuilder(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	type QueryWithBuilder struct {
+		Id      int64  `xorm:"autoincr pk"`
+		Msg     string `xorm:"varchar(255)"`
+		Age     int
+		Money   float32
+		Created time.Time `xorm:"created"`
+	}
+
+	testEngine.ShowSQL(true)
+
+	assert.NoError(t, testEngine.Sync2(new(QueryWithBuilder)))
+
+	var q = QueryWithBuilder{
+		Msg:   "message",
+		Age:   20,
+		Money: 3000,
+	}
+	cnt, err := testEngine.Insert(&q)
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, cnt)
+
+	assertResult := func(t *testing.T, results []map[string][]byte) {
+		assert.EqualValues(t, 1, len(results))
+		id, err := strconv.ParseInt(string(results[0]["id"]), 10, 64)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 1, id)
+		assert.Equal(t, "message", string(results[0]["msg"]))
+
+		age, err := strconv.Atoi(string(results[0]["age"]))
+		assert.NoError(t, err)
+		assert.EqualValues(t, 20, age)
+
+		money, err := strconv.ParseFloat(string(results[0]["money"]), 32)
+		assert.NoError(t, err)
+		assert.EqualValues(t, 3000, money)
+	}
+
+	results, err := testEngine.Query(builder.Select("*").From(testEngine.TableName("query_with_builder", true)))
 	assert.NoError(t, err)
 	assertResult(t, results)
 }

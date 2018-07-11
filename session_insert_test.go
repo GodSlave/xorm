@@ -662,3 +662,121 @@ func TestInsertCreatedInt64(t *testing.T) {
 
 	assert.EqualValues(t, data.Created, data2.Created)
 }
+
+type MyUserinfo Userinfo
+
+func (MyUserinfo) TableName() string {
+	return "user_info"
+}
+
+func TestInsertMulti3(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	testEngine.ShowSQL(true)
+	assertSync(t, new(MyUserinfo))
+
+	users := []MyUserinfo{
+		{Username: "xlw", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		{Username: "xlw2", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+		{Username: "xlw11", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		{Username: "xlw22", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+	}
+	cnt, err := testEngine.Insert(&users)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(users), cnt)
+
+	users2 := []*MyUserinfo{
+		&MyUserinfo{Username: "1xlw", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		&MyUserinfo{Username: "1xlw2", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+		&MyUserinfo{Username: "1xlw11", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		&MyUserinfo{Username: "1xlw22", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+	}
+
+	cnt, err = testEngine.Insert(&users2)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(users), cnt)
+}
+
+type MyUserinfo2 struct {
+	Uid        int64  `xorm:"id pk not null autoincr"`
+	Username   string `xorm:"unique"`
+	Departname string
+	Alias      string `xorm:"-"`
+	Created    time.Time
+	Detail     Userdetail `xorm:"detail_id int(11)"`
+	Height     float64
+	Avatar     []byte
+	IsMan      bool
+}
+
+func (MyUserinfo2) TableName() string {
+	return "user_info"
+}
+
+func TestInsertMulti4(t *testing.T) {
+	assert.NoError(t, prepareEngine())
+
+	testEngine.ShowSQL(false)
+	assertSync(t, new(MyUserinfo2))
+	testEngine.ShowSQL(true)
+
+	users := []MyUserinfo2{
+		{Username: "xlw", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		{Username: "xlw2", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+		{Username: "xlw11", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		{Username: "xlw22", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+	}
+	cnt, err := testEngine.Insert(&users)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(users), cnt)
+
+	users2 := []*MyUserinfo2{
+		&MyUserinfo2{Username: "1xlw", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		&MyUserinfo2{Username: "1xlw2", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+		&MyUserinfo2{Username: "1xlw11", Departname: "dev", Alias: "lunny2", Created: time.Now()},
+		&MyUserinfo2{Username: "1xlw22", Departname: "dev", Alias: "lunny3", Created: time.Now()},
+	}
+
+	cnt, err = testEngine.Insert(&users2)
+	assert.NoError(t, err)
+	assert.EqualValues(t, len(users), cnt)
+}
+
+func TestAnonymousStruct(t *testing.T) {
+	type PlainObject struct {
+		ID   uint64 `json:"id,string" xorm:"'ID' pk autoincr"`
+		Desc string `json:"desc" xorm:"'DESC' notnull"`
+	}
+
+	type PlainFoo struct {
+		PlainObject `xorm:"extends"` // primary key defined in extends struct
+
+		Width  uint32 `json:"width" xorm:"'WIDTH' notnull"`
+		Height uint32 `json:"height" xorm:"'HEIGHT' notnull"`
+
+		Ext struct {
+			F1 uint32 `json:"f1,omitempty"`
+			F2 uint32 `json:"f2,omitempty"`
+		} `json:"ext" xorm:"'EXT' json notnull"`
+	}
+
+	assert.NoError(t, prepareEngine())
+	assertSync(t, new(PlainFoo))
+
+	_, err := testEngine.Insert(&PlainFoo{
+		PlainObject: PlainObject{
+			Desc: "test",
+		},
+		Width:  10,
+		Height: 20,
+
+		Ext: struct {
+			F1 uint32 `json:"f1,omitempty"`
+			F2 uint32 `json:"f2,omitempty"`
+		}{
+			F1: 11,
+			F2: 12,
+		},
+	})
+	assert.NoError(t, err)
+}

@@ -82,12 +82,41 @@ func (SyncTable2) TableName() string {
 	return "sync_table1"
 }
 
+type SyncTable3 struct {
+	Id     int64
+	Name   string `xorm:"unique"`
+	Number string `xorm:"index"`
+	Dev    int
+	Age    int
+}
+
+func (s *SyncTable3) TableName() string {
+	return "sync_table1"
+}
+
 func TestSyncTable(t *testing.T) {
 	assert.NoError(t, prepareEngine())
 
 	assert.NoError(t, testEngine.Sync2(new(SyncTable1)))
 
+	tables, err := testEngine.DBMetas()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(tables))
+	assert.EqualValues(t, "sync_table1", tables[0].Name)
+
 	assert.NoError(t, testEngine.Sync2(new(SyncTable2)))
+
+	tables, err = testEngine.DBMetas()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(tables))
+	assert.EqualValues(t, "sync_table1", tables[0].Name)
+
+	assert.NoError(t, testEngine.Sync2(new(SyncTable3)))
+
+	tables, err = testEngine.DBMetas()
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, len(tables))
+	assert.EqualValues(t, "sync_table1", tables[0].Name)
 }
 
 func TestIsTableExist(t *testing.T) {
@@ -215,5 +244,66 @@ func TestCharst(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 		panic(err)
+	}
+}
+
+func TestSync2_1(t *testing.T) {
+	type WxTest struct {
+		Id                 int   `xorm:"not null pk autoincr INT(64)`
+		Passport_user_type int16 `xorm:"null int"`
+		Id_delete          int8  `xorm:"null int default 1"`
+	}
+
+	assert.NoError(t, prepareEngine())
+
+	assert.NoError(t, testEngine.DropTables("wx_test"))
+	assert.NoError(t, testEngine.Sync2(new(WxTest)))
+	assert.NoError(t, testEngine.Sync2(new(WxTest)))
+}
+
+func TestUnique_1(t *testing.T) {
+	type UserUnique struct {
+		Id        int64
+		UserName  string    `xorm:"unique varchar(25) not null"`
+		Password  string    `xorm:"varchar(255) not null"`
+		Admin     bool      `xorm:"not null"`
+		CreatedAt time.Time `xorm:"created"`
+		UpdatedAt time.Time `xorm:"updated"`
+	}
+
+	assert.NoError(t, prepareEngine())
+
+	assert.NoError(t, testEngine.DropTables("user_unique"))
+	assert.NoError(t, testEngine.Sync2(new(UserUnique)))
+
+	assert.NoError(t, testEngine.DropTables("user_unique"))
+	assert.NoError(t, testEngine.CreateTables(new(UserUnique)))
+	assert.NoError(t, testEngine.CreateUniques(new(UserUnique)))
+}
+
+func TestSync2_2(t *testing.T) {
+	type TestSync2Index struct {
+		Id     int64
+		UserId int64 `xorm:"index"`
+	}
+
+	assert.NoError(t, prepareEngine())
+
+	var tableNames = make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		tableName := fmt.Sprintf("test_sync2_index_%d", i)
+		tableNames[tableName] = true
+		assert.NoError(t, testEngine.Table(tableName).Sync2(new(TestSync2Index)))
+
+		exist, err := testEngine.IsTableExist(tableName)
+		assert.NoError(t, err)
+		assert.True(t, exist)
+	}
+
+	tables, err := testEngine.DBMetas()
+	assert.NoError(t, err)
+
+	for _, table := range tables {
+		assert.True(t, tableNames[table.Name])
 	}
 }
