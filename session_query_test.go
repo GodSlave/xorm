@@ -45,7 +45,7 @@ func TestQueryString(t *testing.T) {
 }
 
 func TestQueryString2(t *testing.T) {
-	assert.NoError(t, prepareEngine())
+	assert.NoError(t, createEngine("mysql", "root:woaini123@tcp(192.168.1.74:3306)/test?charset=utf8"))
 
 	type GetVar3 struct {
 		Id  int64 `xorm:"autoincr pk"`

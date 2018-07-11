@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-xorm/builder"
 	"github.com/go-xorm/core"
+	"errors"
 )
 
 func (session *Session) genQuerySQL(sqlorArgs ...interface{}) (string, []interface{}, error) {
@@ -110,7 +111,7 @@ func value2String(rawValue *reflect.Value) (str string, err error) {
 		default:
 			err = fmt.Errorf("Unsupported struct type %v", vv.Type().Name())
 		}
-	// time type
+		// time type
 	case reflect.Struct:
 		if aa.ConvertibleTo(core.TimeType) {
 			str = vv.Convert(core.TimeType).Interface().(time.Time).Format(time.RFC3339Nano)
@@ -121,13 +122,13 @@ func value2String(rawValue *reflect.Value) (str string, err error) {
 		str = strconv.FormatBool(vv.Bool())
 	case reflect.Complex128, reflect.Complex64:
 		str = fmt.Sprintf("%v", vv.Complex())
-	/* TODO: unsupported types below
-	   case reflect.Map:
-	   case reflect.Ptr:
-	   case reflect.Uintptr:
-	   case reflect.UnsafePointer:
-	   case reflect.Chan, reflect.Func, reflect.Interface:
-	*/
+		/* TODO: unsupported types below
+		   case reflect.Map:
+		   case reflect.Ptr:
+		   case reflect.Uintptr:
+		   case reflect.UnsafePointer:
+		   case reflect.Chan, reflect.Func, reflect.Interface:
+		*/
 	default:
 		err = fmt.Errorf("Unsupported struct type %v", vv.Type().Name())
 	}
@@ -249,4 +250,153 @@ func (session *Session) QueryInterface(sqlorArgs ...interface{}) ([]map[string]i
 	defer rows.Close()
 
 	return rows2Interfaces(rows)
+}
+
+func (session *Session) QueryObjs(rowsSlicePtr interface{}, sqlorArgs ...interface{}) (error) {
+	if session.isAutoClose {
+		defer session.Close()
+	}
+
+	sqlStr, args, err := session.genQuerySQL(sqlorArgs...)
+	if err != nil {
+		return err
+	}
+
+	rows, err := session.queryRows(sqlStr, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	return session.rows2Objs(rows, rowsSlicePtr)
+}
+
+func (session *Session) rows2Objs(rows *core.Rows, rowsSlicePtr interface{}) error {
+	fields, err := rows.Columns()
+	if err != nil {
+		return err
+	}
+	containerValue := reflect.Indirect(reflect.ValueOf(rowsSlicePtr))
+	if containerValue.Kind() != reflect.Slice && containerValue.Kind() != reflect.Map {
+		return errors.New("needs a pointer to a slice or a map")
+	}
+
+	sliceElementType := containerValue.Type().Elem()
+
+	if session.statement.RefTable == nil {
+		if sliceElementType.Kind() == reflect.Ptr {
+			if sliceElementType.Elem().Kind() == reflect.Struct {
+				pv := reflect.New(sliceElementType.Elem())
+				if err := session.statement.setRefValue(pv.Elem()); err != nil {
+					return err
+				}
+			}
+		} else if sliceElementType.Kind() == reflect.Struct {
+			pv := reflect.New(sliceElementType)
+			if err := session.statement.setRefValue(pv.Elem()); err != nil {
+				return err
+			}
+		}
+	}
+
+	var table = session.statement.RefTable
+
+	var newElemFunc func(fields []string) reflect.Value
+	elemType := containerValue.Type().Elem()
+	var isPointer bool
+	if elemType.Kind() == reflect.Ptr {
+		isPointer = true
+		elemType = elemType.Elem()
+	}
+	if elemType.Kind() == reflect.Ptr {
+		return errors.New("pointer to pointer is not supported")
+	}
+
+	newElemFunc = func(fields []string) reflect.Value {
+		switch elemType.Kind() {
+		case reflect.Slice:
+			slice := reflect.MakeSlice(elemType, len(fields), len(fields))
+			x := reflect.New(slice.Type())
+			x.Elem().Set(slice)
+			return x
+		case reflect.Map:
+			mp := reflect.MakeMap(elemType)
+			x := reflect.New(mp.Type())
+			x.Elem().Set(mp)
+			return x
+		}
+		return reflect.New(elemType)
+	}
+
+	var containerValueSetFunc func(*reflect.Value, core.PK) error
+
+	if containerValue.Kind() == reflect.Slice {
+		containerValueSetFunc = func(newValue *reflect.Value, pk core.PK) error {
+			if isPointer {
+				containerValue.Set(reflect.Append(containerValue, newValue.Elem().Addr()))
+			} else {
+				containerValue.Set(reflect.Append(containerValue, newValue.Elem()))
+			}
+			return nil
+		}
+	} else {
+		keyType := containerValue.Type().Key()
+		if len(table.PrimaryKeys) == 0 {
+			return errors.New("don't support multiple primary key's map has non-slice key type")
+		}
+		if len(table.PrimaryKeys) > 1 && keyType.Kind() != reflect.Slice {
+			return errors.New("don't support multiple primary key's map has non-slice key type")
+		}
+
+		containerValueSetFunc = func(newValue *reflect.Value, pk core.PK) error {
+			keyValue := reflect.New(keyType)
+			err := convertPKToValue(table, keyValue.Interface(), pk)
+			if err != nil {
+				return err
+			}
+			if isPointer {
+				containerValue.SetMapIndex(keyValue.Elem(), newValue.Elem().Addr())
+			} else {
+				containerValue.SetMapIndex(keyValue.Elem(), newValue.Elem())
+			}
+			return nil
+		}
+	}
+
+	if elemType.Kind() == reflect.Struct {
+		var newValue = newElemFunc(fields)
+		dataStruct := rValue(newValue.Interface())
+		tb, err := session.engine.autoMapType(dataStruct)
+		if err != nil {
+			return err
+		}
+		err = session.rows2Beans(rows, fields, tb, newElemFunc, containerValueSetFunc)
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		return session.executeProcessors()
+	}
+
+	for rows.Next() {
+		var newValue = newElemFunc(fields)
+		bean := newValue.Interface()
+
+		switch elemType.Kind() {
+		case reflect.Slice:
+			err = rows.ScanSlice(bean)
+		case reflect.Map:
+			err = rows.ScanMap(bean)
+		default:
+			err = rows.Scan(bean)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if err := containerValueSetFunc(&newValue, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }

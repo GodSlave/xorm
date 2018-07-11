@@ -964,7 +964,7 @@ func (engine *Engine) mapType(v reflect.Value) (*core.Table, error) {
 						}
 					} else {
 						if strings.HasPrefix(key, "'") && strings.HasSuffix(key, "'") {
-							col.Name = key[1 : len(key)-1]
+							col.Name = key[1: len(key)-1]
 						} else {
 							col.Name = key
 						}
@@ -1380,6 +1380,11 @@ func (engine *Engine) QueryString(sqlorArgs ...interface{}) ([]map[string]string
 	session := engine.NewSession()
 	defer session.Close()
 	return session.QueryString(sqlorArgs...)
+}
+func (engine *Engine) QueryObjs(rowsSlicePtr interface{}, sqlorArgs ...interface{}) (error) {
+	session := engine.NewSession()
+	defer session.Close()
+	return session.QueryObjs(rowsSlicePtr, sqlorArgs...)
 }
 
 // QueryInterface runs a raw sql and return records as []map[string]interface{}

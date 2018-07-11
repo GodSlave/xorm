@@ -100,7 +100,7 @@ func NewSimpleLogger3(out io.Writer, prefix string, flag int, l core.LogLevel) *
 // Error implement core.ILogger
 func (s *SimpleLogger) Error(v ...interface{}) {
 	if s.level <= core.LOG_ERR {
-		s.ERR.Output(2, fmt.Sprint(v...))
+		s.ERR.Output(4, fmt.Sprint(v...))
 	}
 	return
 }
